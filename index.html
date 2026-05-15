@@ -63,11 +63,13 @@ input::placeholder{color:var(--muted);font-weight:400}
 </head>
 <body>
 <div class="wrap">
+
   <header>
     <div class="logo">VibeTalk</div>
     <h1>التواصل<br>بالاهتزاز</h1>
     <p class="tagline">أرسل أرقاماً بدون صوت، فقط اهتزاز</p>
   </header>
+
   <div id="setup" style="display:flex;flex-direction:column;gap:14px">
     <div class="card">
       <div class="card-title">الغرفة</div>
@@ -79,14 +81,29 @@ input::placeholder{color:var(--muted);font-weight:400}
     <div class="card">
       <div class="card-title">دورك في الغرفة</div>
       <div class="role-row">
-        <div class="role-btn active" id="roleA"><span class="role-icon">📤</span><span class="role-label">مرسل</span><span class="role-desc">أضغط الأرقام</span></div>
-        <div class="role-btn" id="roleB"><span class="role-icon">📳</span><span class="role-label">مستقبل</span><span class="role-desc">يهتز هاتفك</span></div>
+        <div class="role-btn active" id="roleA">
+          <span class="role-icon">📤</span>
+          <span class="role-label">مرسل</span>
+          <span class="role-desc">أضغط الأرقام</span>
+        </div>
+        <div class="role-btn" id="roleB">
+          <span class="role-icon">📳</span>
+          <span class="role-label">مستقبل</span>
+          <span class="role-desc">يهتز هاتفك</span>
+        </div>
       </div>
     </div>
   </div>
-  <div class="status" id="statusBar"><div class="dot"></div><span id="statusTxt">أدخل اسم الغرفة وانضم</span></div>
-  <div class="warn" id="warnBox">⚠️ هاتفك لا يدعم الاهتزاز أو يحتاج إذن.</div>
+
+  <div class="status" id="statusBar">
+    <div class="dot"></div>
+    <span id="statusTxt">أدخل اسم الغرفة وانضم</span>
+  </div>
+
+  <div class="warn" id="warnBox">⚠️ هاتفك لا يدعم الاهتزاز أو يحتاج إذن. اضغط أي زر لتفعيله.</div>
+
   <div class="main" id="mainUI">
+
     <div id="senderUI">
       <div class="card" style="margin-bottom:12px"><div class="card-title">اضغط لإرسال رقم</div></div>
       <div class="grid">
@@ -96,6 +113,7 @@ input::placeholder{color:var(--muted);font-weight:400}
         <div class="nBtn" id="n4"><span class="nAr">٤</span><div class="nPat"><div class="vd"></div><div class="vd l"></div></div><span class="nLbl">قصيرة + طويلة</span></div>
       </div>
     </div>
+
     <div id="receiverUI" style="display:none">
       <div class="card" style="text-align:center;margin-bottom:0">
         <div class="card-title">في انتظار رسالة...</div>
@@ -106,80 +124,174 @@ input::placeholder{color:var(--muted);font-weight:400}
         </div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-title">سجل الرسائل</div>
       <div class="log-list" id="logList"><div class="log-item" style="justify-content:center" id="emptyLog">لا توجد رسائل بعد</div></div>
     </div>
+
     <button class="btn btn-ghost" id="leaveBtn" style="width:100%">مغادرة الغرفة</button>
   </div>
+
 </div>
+
 <script>
-const DB='https://vibetalk-a9379-default-rtdb.firebaseio.com';
-let role='sender',room='',connected=false,pollTimer=null,lastKey='',joinedAt=0;
-const patterns={1:[0,300],2:[0,150,120,150],3:[0,120,80,120,80,120],4:[0,120,80,280]};
-const labels={1:'اهتزازة واحدة طويلة',2:'اهتزازتان قصيرتان',3:'ثلاث اهتزازات قصيرة',4:'قصيرة + طويلة'};
-const arNums={1:'١',2:'٢',3:'٣',4:'٤'};
-const $=id=>document.getElementById(id);
-$('roleA').onclick=()=>{role='sender';$('roleA').classList.add('active');$('roleB').classList.remove('active')};
-$('roleB').onclick=()=>{role='receiver';$('roleB').classList.add('active');$('roleA').classList.remove('active')};
-$('joinBtn').onclick=join;
-$('roomInput').onkeydown=e=>{if(e.key==='Enter')join()};
-async function join(){
-  room=$('roomInput').value.trim();
-  if(!room){$('roomInput').focus();return}
-  connected=true;joinedAt=Date.now();
-  $('setup').style.display='none';$('mainUI').classList.add('show');
+// ── Firebase REST config ───────────────────────────────────────────────────
+const DB = 'https://vibetalk-a9379-default-rtdb.firebaseio.com';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let role = 'sender';
+let room = '';
+let connected = false;
+let pollTimer = null;
+let lastKey = '';
+let joinedAt = 0;
+
+const S=100,L=400,G=150;
+const patterns={1:[0,L],2:[0,S,G,L],3:[0,L,G,S,G,S],4:[0,S,G,S,G,L,G,S]};
+const labels={1:'━ طويلة',2:'• ━ قصيرة ثم طويلة',3:'━ • • طويلة ثم قصيرتان',4:'• • ━ • مورس ٤'};
+const arNums   = {1:'١',2:'٢',3:'٣',4:'٤'};
+
+// ── UI refs ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+// ── Role ───────────────────────────────────────────────────────────────────
+$('roleA').onclick = () => { role='sender';  $('roleA').classList.add('active');    $('roleB').classList.remove('active'); };
+$('roleB').onclick = () => { role='receiver';$('roleB').classList.add('active');    $('roleA').classList.remove('active'); };
+
+// ── Join ───────────────────────────────────────────────────────────────────
+$('joinBtn').onclick = join;
+$('roomInput').onkeydown = e => { if(e.key==='Enter') join(); };
+
+async function join() {
+  room = $('roomInput').value.trim();
+  if (!room) { $('roomInput').focus(); return; }
+  connected = true;
+  joinedAt = Date.now();
+
+  $('setup').style.display = 'none';
+  $('mainUI').classList.add('show');
   $('statusBar').classList.add('on');
-  $('statusTxt').textContent=`غرفة: ${room} ● ${role==='sender'?'مرسل':'مستقبل'}`;
-  if(role==='receiver'){$('senderUI').style.display='none';$('receiverUI').style.display='block';if(!navigator.vibrate)$('warnBox').classList.add('show');startPolling();}
-  else{$('senderUI').style.display='block';$('receiverUI').style.display='none';}
-  addLog('system',`انضممت إلى "${room}"`);
+  $('statusTxt').textContent = `غرفة: ${room} ● ${role==='sender'?'مرسل':'مستقبل'}`;
+
+  if (role === 'receiver') {
+    $('senderUI').style.display = 'none';
+    $('receiverUI').style.display = 'block';
+    if (!navigator.vibrate) $('warnBox').classList.add('show');
+    startPolling();
+  } else {
+    $('senderUI').style.display = 'block';
+    $('receiverUI').style.display = 'none';
+  }
+  addLog('system', `انضممت إلى "${room}"`);
 }
-$('leaveBtn').onclick=()=>{connected=false;clearInterval(pollTimer);$('setup').style.display='flex';$('mainUI').classList.remove('show');$('statusBar').classList.remove('on');$('statusTxt').textContent='أدخل اسم الغرفة وانضم';$('logList').innerHTML='<div class="log-item" style="justify-content:center">لا توجد رسائل بعد</div>';};
-async function send(num){
-  if(!connected)return;
-  const btn=$('n'+num);btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),500);
-  try{navigator.vibrate&&navigator.vibrate([0,60])}catch(e){}
-  try{
-    const res=await fetch(`${DB}/rooms/${encodeURIComponent(room)}/messages.json`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num,ts:Date.now()})});
-    if(res.ok)addLog('sent',num);else{const t=await res.text();addLog('system','❌ '+t.slice(0,60));}
-  }catch(e){addLog('system','❌ '+e.message);}
-}
-$('n1').onclick=()=>send(1);$('n2').onclick=()=>send(2);$('n3').onclick=()=>send(3);$('n4').onclick=()=>send(4);
-function startPolling(){poll();pollTimer=setInterval(poll,800);}
-async function poll(){
-  if(!connected)return;
-  try{
-    const res=await fetch(`${DB}/rooms/${encodeURIComponent(room)}/messages.json?orderBy="ts"&startAt=${joinedAt}&limitToLast=10`);
-    if(!res.ok)return;
-    const data=await res.json();if(!data)return;
-    const keys=Object.keys(data).sort();
-    const unseen=keys.filter(k=>k>lastKey);
-    for(const k of unseen){
-      const msg=data[k];
-      if(msg&&msg.num&&msg.ts>=joinedAt){lastKey=k;await handleIncoming(msg.num);await new Promise(r=>setTimeout(r,600));}
+
+// ── Leave ──────────────────────────────────────────────────────────────────
+$('leaveBtn').onclick = () => {
+  connected = false;
+  clearInterval(pollTimer);
+  $('setup').style.display = 'flex';
+  $('mainUI').classList.remove('show');
+  $('statusBar').classList.remove('on');
+  $('statusTxt').textContent = 'أدخل اسم الغرفة وانضم';
+  $('logList').innerHTML = '<div class="log-item" style="justify-content:center">لا توجد رسائل بعد</div>';
+};
+
+// ── Send via REST ──────────────────────────────────────────────────────────
+async function send(num) {
+  if (!connected) return;
+  const btn = $('n'+num);
+  btn.classList.add('flash');
+  setTimeout(()=>btn.classList.remove('flash'),500);
+  try { navigator.vibrate && navigator.vibrate([0,60]); } catch(e){}
+
+  try {
+    const res = await fetch(`${DB}/rooms/${encodeURIComponent(room)}/messages.json`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({num, ts: Date.now()})
+    });
+    if (res.ok) {
+      addLog('sent', num);
+    } else {
+      const txt = await res.text();
+      addLog('system', '❌ خطأ: ' + txt.slice(0,60));
     }
-  }catch(e){}
+  } catch(e) {
+    addLog('system', '❌ فشل الاتصال: ' + e.message);
+  }
 }
-async function handleIncoming(num){
-  $('recvEmpty').style.display='none';
-  const el=$('recvNum');el.textContent=arNums[num];el.className='recv-num';void el.offsetWidth;el.classList.add('pop');
-  $('recvLbl').textContent=labels[num];
-  try{navigator.vibrate&&navigator.vibrate(patterns[num]);}catch(e){}
-  const dur=patterns[num].reduce((a,b)=>a+b,0);
-  await new Promise(r=>setTimeout(r,dur+100));
-  addLog('recv',num);
+
+$('n1').onclick = ()=>send(1);
+$('n2').onclick = ()=>send(2);
+$('n3').onclick = ()=>send(3);
+$('n4').onclick = ()=>send(4);
+
+// ── Poll for new messages (receiver) ──────────────────────────────────────
+function startPolling() {
+  poll();
+  pollTimer = setInterval(poll, 800);
 }
-function addLog(type,val){
-  const list=$('logList');const empty=$('emptyLog');if(empty)empty.remove();
-  const item=document.createElement('div');item.className='log-item';
-  const t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  if(type==='sent')item.innerHTML=`<span>📤</span> أرسلت رقم ${arNums[val]} <span class="log-time">${t}</span>`;
-  else if(type==='recv')item.innerHTML=`<span>📳</span> استقبلت رقم ${arNums[val]} <span class="log-time">${t}</span>`;
-  else item.innerHTML=`<span>ℹ️</span> ${val} <span class="log-time">${t}</span>`;
-  list.insertBefore(item,list.firstChild);if(list.children.length>10)list.removeChild(list.lastChild);
+
+async function poll() {
+  if (!connected) return;
+  try {
+    const res = await fetch(
+      `${DB}/rooms/${encodeURIComponent(room)}/messages.json?orderBy="ts"&startAt=${joinedAt}&limitToLast=10`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data) return;
+
+    // process ALL unseen messages in order
+    const keys = Object.keys(data).sort();
+    const unseen = keys.filter(k => k > lastKey);
+    
+    for (const k of unseen) {
+      const msg = data[k];
+      if (msg && msg.num && msg.ts >= joinedAt) {
+        lastKey = k;
+        await handleIncoming(msg.num);
+        // wait between messages so vibrations don't overlap
+        await new Promise(r => setTimeout(r, 600));
+      }
+    }
+  } catch(e) {}
 }
-document.addEventListener('touchstart',()=>{try{navigator.vibrate&&navigator.vibrate(1);}catch(e){}},{once:true});
+
+// ── Handle incoming ────────────────────────────────────────────────────────
+async function handleIncoming(num) {
+  $('recvEmpty').style.display = 'none';
+  const el = $('recvNum');
+  el.textContent = arNums[num];
+  el.className = 'recv-num';
+  void el.offsetWidth;
+  el.classList.add('pop');
+  $('recvLbl').textContent = labels[num];
+  try { navigator.vibrate && navigator.vibrate(patterns[num]); } catch(e){}
+  // wait for vibration to finish before next one
+  const dur = patterns[num].reduce((a,b)=>a+b,0);
+  await new Promise(r => setTimeout(r, dur + 100));
+  addLog('recv', num);
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────
+function addLog(type, val) {
+  const list = $('logList');
+  const empty = $('emptyLog');
+  if (empty) empty.remove();
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  const t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if (type==='sent')   item.innerHTML = `<span>📤</span> أرسلت رقم ${arNums[val]} <span class="log-time">${t}</span>`;
+  else if(type==='recv') item.innerHTML = `<span>📳</span> استقبلت رقم ${arNums[val]} <span class="log-time">${t}</span>`;
+  else item.innerHTML = `<span>ℹ️</span> ${val} <span class="log-time">${t}</span>`;
+  list.insertBefore(item, list.firstChild);
+  if(list.children.length>10) list.removeChild(list.lastChild);
+}
+
+// ── Vibration unlock on touch ──────────────────────────────────────────────
+document.addEventListener('touchstart', ()=>{ try{navigator.vibrate&&navigator.vibrate(1);}catch(e){} }, {once:true});
 </script>
 </body>
 </html>
